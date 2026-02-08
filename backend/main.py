@@ -1,7 +1,10 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from backend.database import database
 from backend.routers import auth, events, dashboard
+import os
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -30,9 +33,24 @@ app.include_router(finance.router)
 app.include_router(clients.router)
 app.include_router(invoices.router)
 
-@app.get("/")
-async def root():
-    return {"message": "System is running"}
+# Mount static files (Frontend build)
+# Typically the Dockerfile copies 'frontend/dist' to '/app/frontend/dist'
+STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "dist")
+
+if os.path.exists(STATIC_DIR):
+    app.mount("/assets", StaticFiles(directory=os.path.join(STATIC_DIR, "assets")), name="assets")
+    
+    # Catch-all route for SPA (React Router)
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        # Allow API routes to pass through (already handled above by routers)
+        if full_path.startswith("api"):
+            return {"error": "API route not found"}
+            
+        # Serve index.html for all other routes
+        return FileResponse(os.path.join(STATIC_DIR, "index.html"))
+else:
+    print(f"Static directory not found: {STATIC_DIR}. Running in API-only mode.")
 
 @app.get("/health")
 async def health_check():
