@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./business.db:/app/business.db
+      - ./backend:/app/backend
+    environment:
+      - DB_URL=sqlite:///./business.db
+      - SECRET_KEY=your_secret_key_here
+    restart: always
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5174:80"
+    depends_on:
+      - backend
+    restart: always
+
+# Define Volumes (if needed)
+volumes:
+  db_data:
