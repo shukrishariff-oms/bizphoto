@@ -38,8 +38,11 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         )
     
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    
+    # INCLUDE user_id IN TOKEN
     access_token = create_access_token(
-        data={"sub": user["username"], "role": user["role"]}, expires_delta=access_token_expires
+        data={"sub": user["username"], "role": user["role"], "id": str(user["id"])}, 
+        expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -57,11 +60,16 @@ async def register_user(user: UserCreate):
 
     hashed_password = get_password_hash(user.password)
     
+    # Import uuid here since it's needed for new user ID
+    import uuid
+    user_id = str(uuid.uuid4())
+    
     query = """
-    INSERT INTO users (username, email, password_hash, role)
-    VALUES (:username, :email, :password_hash, :role)
+    INSERT INTO users (id, username, email, password_hash, role)
+    VALUES (:id, :username, :email, :password_hash, :role)
     """
     await database.execute(query=query, values={
+        "id": user_id,
         "username": user.username,
         "email": user.email,
         "password_hash": hashed_password,

@@ -38,12 +38,13 @@ class CameraResponse(BaseModel):
 # --- Endpoints ---
 @router.post("/", response_model=CameraResponse)
 async def register_camera(camera: CameraCreate, current_user: dict = Depends(get_current_active_user)):
+    user_id = current_user["id"]
     camera_id = str(uuid4())
     created_at = datetime.now()
     
     query = """
-    INSERT INTO cameras (id, model_name, serial_number, current_shutter_count, purchase_price, max_shutter_life, created_at)
-    VALUES (:id, :model_name, :serial_number, :current_shutter_count, :purchase_price, :max_shutter_life, :created_at)
+    INSERT INTO cameras (id, model_name, serial_number, current_shutter_count, purchase_price, max_shutter_life, created_at, user_id)
+    VALUES (:id, :model_name, :serial_number, :current_shutter_count, :purchase_price, :max_shutter_life, :created_at, :user_id)
     """
     values = {
         "id": camera_id,
@@ -52,7 +53,8 @@ async def register_camera(camera: CameraCreate, current_user: dict = Depends(get
         "current_shutter_count": camera.initial_shutter_count,
         "purchase_price": camera.purchase_price,
         "max_shutter_life": camera.max_shutter_life,
-        "created_at": created_at
+        "created_at": created_at,
+        "user_id": user_id
     }
     
     try:
@@ -64,9 +66,10 @@ async def register_camera(camera: CameraCreate, current_user: dict = Depends(get
 
 @router.get("/", response_model=List[CameraResponse])
 async def list_cameras(current_user: dict = Depends(get_current_active_user)):
-    query = "SELECT * FROM cameras ORDER BY created_at DESC"
+    user_id = current_user["id"]
+    query = "SELECT * FROM cameras WHERE user_id = :user_id ORDER BY created_at DESC"
     try:
-        results = await database.fetch_all(query=query)
+        results = await database.fetch_all(query=query, values={"user_id": user_id})
         # Ensure default values for older records if any
         cameras = []
         for r in results:
@@ -82,9 +85,17 @@ async def list_cameras(current_user: dict = Depends(get_current_active_user)):
 
 @router.delete("/{camera_id}")
 async def delete_camera(camera_id: UUID, current_user: dict = Depends(get_current_active_user)):
-    query = "DELETE FROM cameras WHERE id = :id"
+    user_id = current_user["id"]
+    
+    # Check ownership
+    check_query = "SELECT 1 FROM cameras WHERE id = :id AND user_id = :user_id"
+    exists = await database.fetch_one(query=check_query, values={"id": str(camera_id), "user_id": user_id})
+    if not exists:
+        raise HTTPException(status_code=404, detail="Camera not found")
+
+    query = "DELETE FROM cameras WHERE id = :id AND user_id = :user_id"
     try:
-        await database.execute(query=query, values={"id": str(camera_id)})
+        await database.execute(query=query, values={"id": str(camera_id), "user_id": user_id})
         return {"message": "Camera deleted successfully"}
     except Exception as e:
          # Log e
@@ -93,9 +104,10 @@ async def delete_camera(camera_id: UUID, current_user: dict = Depends(get_curren
 
 @router.put("/{camera_id}", response_model=CameraResponse)
 async def update_camera(camera_id: UUID, camera: CameraUpdate, current_user: dict = Depends(get_current_active_user)):
+    user_id = current_user["id"]
     # 1. Check if camera exists
-    check_query = "SELECT * FROM cameras WHERE id = :id"
-    existing_camera = await database.fetch_one(query=check_query, values={"id": str(camera_id)})
+    check_query = "SELECT * FROM cameras WHERE id = :id AND user_id = :user_id"
+    existing_camera = await database.fetch_one(query=check_query, values={"id": str(camera_id), "user_id": user_id})
     if not existing_camera:
         raise HTTPException(status_code=404, detail="Camera not found")
 
@@ -106,14 +118,14 @@ async def update_camera(camera_id: UUID, camera: CameraUpdate, current_user: dic
          return dict(existing_camera)
 
     set_clause = ", ".join([f"{key} = :{key}" for key in update_data.keys()])
-    query = f"UPDATE cameras SET {set_clause} WHERE id = :id"
+    query = f"UPDATE cameras SET {set_clause} WHERE id = :id AND user_id = :user_id"
     
-    values = {**update_data, "id": str(camera_id)}
+    values = {**update_data, "id": str(camera_id), "user_id": user_id}
     
     try:
         await database.execute(query=query, values=values)
         # Fetch updated record
-        updated_camera = await database.fetch_one(query=check_query, values={"id": str(camera_id)})
+        updated_camera = await database.fetch_one(query=check_query, values={"id": str(camera_id), "user_id": user_id})
         return dict(updated_camera)
     except Exception as e:
         print(f"Error updating camera: {e}")

@@ -165,6 +165,35 @@ async def deploy_db():
         else:
             print("Admin user already exists.")
 
+        # --- MIGRATION: SaaS Support (Add user_id) ---
+        print("Checking SaaS schema migrations...")
+        
+        # Fetch Admin ID (guaranteed to exist now)
+        cursor = await db.execute("SELECT id FROM users WHERE username = 'admin'")
+        admin_row = await cursor.fetchone()
+        admin_id = admin_row[0]
+        
+        tables_to_migrate = ['events', 'clients', 'cameras', 'transactions', 'invoices']
+        
+        for table in tables_to_migrate:
+            try:
+                # Try to add user_id column
+                await db.execute(f"ALTER TABLE {table} ADD COLUMN user_id TEXT REFERENCES users(id)")
+                print(f"  - Added user_id to {table}")
+                
+                # Backfill existing data
+                await db.execute(f"UPDATE {table} SET user_id = ? WHERE user_id IS NULL", (admin_id,))
+                print(f"  - Backfilled {table} with admin_id")
+                
+            except Exception as e:
+                # Ignore if column exists
+                if "duplicate column name" not in str(e):
+                    print(f"  - Error migrating {table}: {e}")
+                else:
+                    print(f"  - {table} already has user_id")
+        
+        await db.commit()
+
     print(f"Database deployment complete at {DB_PATH}.")
 
 if __name__ == "__main__":

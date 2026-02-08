@@ -26,6 +26,11 @@ class ExpenseResponse(BaseModel):
     description: Optional[str] = None
     created_at: str
 
+class ExpenseUpdate(BaseModel):
+    cost_type: Optional[str] = None
+    amount: Optional[float] = None
+    description: Optional[str] = None
+
 # --- Endpoints ---
 
 @router.post("/", response_model=ExpenseResponse)
@@ -33,6 +38,13 @@ async def create_expense(expense: ExpenseCreate, current_user: dict = Depends(ge
     """
     Record a new expense for an event.
     """
+    user_id = current_user["id"]
+    # Check event ownership
+    check_query = "SELECT 1 FROM events WHERE id = :event_id AND user_id = :user_id"
+    event_exists = await database.fetch_one(query=check_query, values={"event_id": str(expense.event_id), "user_id": user_id})
+    if not event_exists:
+        raise HTTPException(status_code=404, detail="Event not found")
+
     expense_id = str(uuid4())
     query = """
     INSERT INTO event_costs (id, event_id, cost_type, amount, description)
@@ -58,6 +70,17 @@ async def get_event_expenses(event_id: UUID, current_user: dict = Depends(get_cu
     """
     List all expenses associated with a specific event.
     """
+    user_id = current_user["id"]
+    # Check event ownership implicit in join or check.
+    # Simple check first
+    check_query = "SELECT 1 FROM events WHERE id = :event_id AND user_id = :user_id"
+    event_exists = await database.fetch_one(query=check_query, values={"event_id": str(event_id), "user_id": user_id})
+    if not event_exists:
+         # Either not found or not owned, return empty list or 404? 
+         # Standard practice: 404 if parent not found, or empty list if just access denied to prevent enumeration?
+         # Let's say 404/Empty. Return empty list matches original behavior.
+         return []
+
     query = "SELECT * FROM event_costs WHERE event_id = :event_id ORDER BY created_at DESC"
     try:
         results = await database.fetch_all(query=query, values={"event_id": str(event_id)})
@@ -71,6 +94,17 @@ async def delete_expense(expense_id: UUID, current_user: dict = Depends(get_curr
     """
     Remove an expense record.
     """
+    user_id = current_user["id"]
+    # Check ownership via join
+    check_query = """
+    SELECT 1 FROM event_costs c
+    JOIN events e ON c.event_id = e.id
+    WHERE c.id = :id AND e.user_id = :user_id
+    """
+    exists = await database.fetch_one(query=check_query, values={"id": str(expense_id), "user_id": user_id})
+    if not exists:
+        raise HTTPException(status_code=404, detail="Expense not found")
+
     query = "DELETE FROM event_costs WHERE id = :id"
     try:
         await database.execute(query=query, values={"id": str(expense_id)})
@@ -78,19 +112,19 @@ async def delete_expense(expense_id: UUID, current_user: dict = Depends(get_curr
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to delete expense")
 
-class ExpenseUpdate(BaseModel):
-    cost_type: Optional[str] = None
-    amount: Optional[float] = None
-    description: Optional[str] = None
-
 @router.put("/{expense_id}")
 async def update_expense(expense_id: UUID, expense: ExpenseUpdate, current_user: dict = Depends(get_current_active_user)):
     """
     Update an existing expense record.
     """
-    # 1. Check if expense exists
-    check_query = "SELECT * FROM event_costs WHERE id = :id"
-    existing = await database.fetch_one(query=check_query, values={"id": str(expense_id)})
+    user_id = current_user["id"]
+    # 1. Check if expense exists and belongs to user
+    check_query = """
+    SELECT c.* FROM event_costs c
+    JOIN events e ON c.event_id = e.id
+    WHERE c.id = :id AND e.user_id = :user_id
+    """
+    existing = await database.fetch_one(query=check_query, values={"id": str(expense_id), "user_id": user_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Expense not found")
 

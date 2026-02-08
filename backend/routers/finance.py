@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from backend.database import database
 from backend.auth import get_current_active_user
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
+from uuid import uuid4
 
 router = APIRouter(
     prefix="/finance",
@@ -29,28 +30,30 @@ class TransactionCreate(BaseModel):
 
 @router.get("/transactions", response_model=List[Transaction])
 async def get_transactions(current_user: dict = Depends(get_current_active_user)):
+    user_id = current_user["id"]
+    
     # 1. Get Income (Events)
     events_query = """
     SELECT id, event_date as date, name as description, base_price as amount, status 
     FROM events 
+    WHERE user_id = :user_id
     ORDER BY event_date DESC
     """
-    events = await database.fetch_all(query=events_query)
+    events = await database.fetch_all(query=events_query, values={"user_id": user_id})
     
-    # 2. Get Expenses (Debits)
-    # We need to join with events to get the date if not stored in expenses, 
-    # but for now let's use created_at as date for expenses or join event_id
+    # 2. Get Expenses (Debits) - Join with events filtering by user_id
     expenses_query = """
     SELECT c.id, c.created_at as date, c.cost_type || ' - ' || e.name as description, c.amount, 'completed' as status
     FROM event_costs c
     JOIN events e ON c.event_id = e.id
+    WHERE e.user_id = :user_id
     ORDER BY c.created_at DESC
     """
-    expenses = await database.fetch_all(query=expenses_query)
+    expenses = await database.fetch_all(query=expenses_query, values={"user_id": user_id})
 
     # 3. Get General Transactions
-    transactions_query = "SELECT * FROM transactions ORDER BY date DESC"
-    general_transactions = await database.fetch_all(query=transactions_query)
+    transactions_query = "SELECT * FROM transactions WHERE user_id = :user_id ORDER BY date DESC"
+    general_transactions = await database.fetch_all(query=transactions_query, values={"user_id": user_id})
     
     transactions = []
     
@@ -95,13 +98,12 @@ async def get_transactions(current_user: dict = Depends(get_current_active_user)
     
     return transactions
 
-from uuid import uuid4
-
 @router.post("/transaction")
 async def create_transaction(transaction: TransactionCreate, current_user: dict = Depends(get_current_active_user)):
+    user_id = current_user["id"]
     query = """
-    INSERT INTO transactions (id, date, type, category, amount, description)
-    VALUES (:id, :date, :type, :category, :amount, :description)
+    INSERT INTO transactions (id, date, type, category, amount, description, user_id)
+    VALUES (:id, :date, :type, :category, :amount, :description, :user_id)
     """
     values = {
         "id": str(uuid4()),
@@ -109,7 +111,8 @@ async def create_transaction(transaction: TransactionCreate, current_user: dict 
         "type": transaction.type,
         "category": transaction.category,
         "amount": transaction.amount,
-        "description": transaction.description
+        "description": transaction.description,
+        "user_id": user_id
     }
     
     try:
@@ -117,15 +120,22 @@ async def create_transaction(transaction: TransactionCreate, current_user: dict 
         return {"message": "Transaction added successfully"}
     except Exception as e:
         print(f"Error adding transaction: {e}")
-        from fastapi import HTTPException
         raise HTTPException(status_code=500, detail="Failed to add transaction")
 
 @router.put("/transaction/{transaction_id}")
 async def update_transaction(transaction_id: str, transaction: TransactionCreate, current_user: dict = Depends(get_current_active_user)):
+    user_id = current_user["id"]
+    
+    # Check ownership
+    check_query = "SELECT 1 FROM transactions WHERE id = :id AND user_id = :user_id"
+    exists = await database.fetch_one(query=check_query, values={"id": transaction_id, "user_id": user_id})
+    if not exists:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
     query = """
     UPDATE transactions 
     SET date = :date, type = :type, category = :category, amount = :amount, description = :description
-    WHERE id = :id
+    WHERE id = :id AND user_id = :user_id
     """
     values = {
         "id": transaction_id,
@@ -133,7 +143,8 @@ async def update_transaction(transaction_id: str, transaction: TransactionCreate
         "type": transaction.type,
         "category": transaction.category,
         "amount": transaction.amount,
-        "description": transaction.description
+        "description": transaction.description,
+        "user_id": user_id
     }
     
     try:
@@ -141,16 +152,21 @@ async def update_transaction(transaction_id: str, transaction: TransactionCreate
         return {"message": "Transaction updated successfully"}
     except Exception as e:
         print(f"Error updating transaction: {e}")
-        from fastapi import HTTPException
         raise HTTPException(status_code=500, detail="Failed to update transaction")
 
 @router.delete("/transaction/{transaction_id}")
 async def delete_transaction(transaction_id: str, current_user: dict = Depends(get_current_active_user)):
-    query = "DELETE FROM transactions WHERE id = :id"
+    user_id = current_user["id"]
+    
+    check_query = "SELECT 1 FROM transactions WHERE id = :id AND user_id = :user_id"
+    exists = await database.fetch_one(query=check_query, values={"id": transaction_id, "user_id": user_id})
+    if not exists:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
+    query = "DELETE FROM transactions WHERE id = :id AND user_id = :user_id"
     try:
-        await database.execute(query=query, values={"id": transaction_id})
+        await database.execute(query=query, values={"id": transaction_id, "user_id": user_id})
         return {"message": "Transaction deleted successfully"}
     except Exception as e:
         print(f"Error deleting transaction: {e}")
-        from fastapi import HTTPException
         raise HTTPException(status_code=500, detail="Failed to delete transaction")

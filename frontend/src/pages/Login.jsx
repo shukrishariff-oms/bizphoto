@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import api from '../api/axios';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
 
@@ -21,7 +21,7 @@ const Login = () => {
             localStorage.setItem('token', response.data.access_token);
 
             toast.dismiss(loadingToast);
-            toast.success('Welcome back, Owner.');
+            toast.success('Welcome back.');
             navigate('/');
         } catch (err) {
             toast.dismiss(loadingToast);
@@ -30,7 +30,7 @@ const Login = () => {
     };
 
     return (
-        <div className="flex items-center justify-center min-h-screen relative overflow-hidden">
+        <div className="flex items-center justify-center min-h-screen relative overflow-hidden bg-slate-950">
             {/* Background Elements */}
             <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
                 <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-pumpkin/10 blur-[100px]" />
@@ -48,7 +48,7 @@ const Login = () => {
                         <span className="text-3xl font-bold text-white">B</span>
                     </div>
                     <h3 className="text-3xl font-bold text-white tracking-tight">BizPhoto</h3>
-                    <p className="text-slate-400 mt-2">Professional Management System</p>
+                    <p className="text-slate-400 mt-2">Professional Business Management</p>
                 </div>
 
                 <form onSubmit={handleLogin} className="space-y-6">
@@ -57,7 +57,7 @@ const Login = () => {
                         <input
                             type="text"
                             className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-pumpkin/50 focus:border-pumpkin/50 transition-all font-medium"
-                            placeholder="Enter your ID"
+                            placeholder="Enter your Username"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
                             required
@@ -78,6 +78,12 @@ const Login = () => {
                     <button className="w-full mt-2 bg-gradient-to-r from-pumpkin to-red-500 text-white font-bold py-3.5 rounded-xl hover:shadow-lg hover:shadow-pumpkin/25 active:scale-[0.98] transition-all duration-200">
                         Sign In to Dashboard
                     </button>
+
+                    <div className="text-center mt-6">
+                        <p className="text-sm text-slate-400">
+                            New here? <Link to="/register" className="text-pumpkin font-bold hover:text-white transition-colors">Create your workspace</Link>
+                        </p>
+                    </div>
                 </form>
             </motion.div>
         </div>

@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
+import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Events from './pages/Events';
 import PrivateRoute from './components/PrivateRoute';
@@ -22,8 +23,9 @@ function App() {
           <Route path=":id" element={<ClientPortal />} />
         </Route>
 
-        {/* Public Login */}
+        {/* Public Login & Register */}
         <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
 
         {/* Protected Admin Routes */}
         <Route element={<PrivateRoute />}>

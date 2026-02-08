@@ -45,6 +45,7 @@ async def create_invoice(invoice: InvoiceCreate, current_user: dict = Depends(ge
     """
     Create a new invoice with items.
     """
+    user_id = current_user["id"]
     invoice_id = str(uuid4())
     created_at = datetime.now()
     
@@ -53,8 +54,8 @@ async def create_invoice(invoice: InvoiceCreate, current_user: dict = Depends(ge
     
     # 1. Insert Invoice
     query_invoice = """
-    INSERT INTO invoices (id, client_id, event_id, invoice_number, status, issued_date, due_date, total_amount, notes, created_at)
-    VALUES (:id, :client_id, :event_id, :invoice_number, 'DRAFT', :issued_date, :due_date, :total_amount, :notes, :created_at)
+    INSERT INTO invoices (id, client_id, event_id, invoice_number, status, issued_date, due_date, total_amount, notes, created_at, user_id)
+    VALUES (:id, :client_id, :event_id, :invoice_number, 'DRAFT', :issued_date, :due_date, :total_amount, :notes, :created_at, :user_id)
     """
     values_invoice = {
         "id": invoice_id,
@@ -65,13 +66,14 @@ async def create_invoice(invoice: InvoiceCreate, current_user: dict = Depends(ge
         "due_date": invoice.due_date,
         "total_amount": total_amount,
         "notes": invoice.notes,
-        "created_at": created_at
+        "created_at": created_at,
+        "user_id": user_id
     }
     
     try:
         await database.execute(query=query_invoice, values=values_invoice)
         
-        # 2. Insert Items
+        # 2. Insert Items (Items linked to Invoice, so implicit ownership)
         if invoice.items:
             query_item = """
             INSERT INTO invoice_items (id, invoice_id, description, quantity, unit_price, amount)
@@ -97,14 +99,16 @@ async def list_invoices(current_user: dict = Depends(get_current_active_user)):
     """
     List all invoices with client names.
     """
+    user_id = current_user["id"]
     query = """
     SELECT i.*, c.name as client_name 
     FROM invoices i
     LEFT JOIN clients c ON i.client_id = c.id
+    WHERE i.user_id = :user_id
     ORDER BY i.created_at DESC
     """
     try:
-        results = await database.fetch_all(query=query)
+        results = await database.fetch_all(query=query, values={"user_id": user_id})
         return [dict(r) for r in results]
     except Exception as e:
         print(f"Error listing invoices: {e}")
@@ -115,14 +119,15 @@ async def get_invoice(invoice_id: UUID, current_user: dict = Depends(get_current
     """
     Get invoice details including items and client info.
     """
+    user_id = current_user["id"]
     # 1. Get Invoice & Client
     query_invoice = """
     SELECT i.*, c.name as client_name, c.email as client_email, c.phone as client_phone, c.address as client_address
     FROM invoices i
     LEFT JOIN clients c ON i.client_id = c.id
-    WHERE i.id = :id
+    WHERE i.id = :id AND i.user_id = :user_id
     """
-    invoice = await database.fetch_one(query=query_invoice, values={"id": str(invoice_id)})
+    invoice = await database.fetch_one(query=query_invoice, values={"id": str(invoice_id), "user_id": user_id})
     
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
@@ -141,12 +146,20 @@ async def update_invoice(invoice_id: UUID, invoice: InvoiceUpdate, current_user:
     """
     Update invoice status or details.
     """
+    user_id = current_user["id"]
+    
+    # Check ownership
+    check_query = "SELECT 1 FROM invoices WHERE id = :id AND user_id = :user_id"
+    exists = await database.fetch_one(query=check_query, values={"id": str(invoice_id), "user_id": user_id})
+    if not exists:
+         raise HTTPException(status_code=404, detail="Invoice not found")
+         
     update_data = invoice.model_dump(exclude_unset=True)
     if not update_data:
         return {"message": "No changes provided"}
 
     set_clause = ", ".join([f"{key} = :{key}" for key in update_data.keys()])
-    query = f"UPDATE invoices SET {set_clause} WHERE id = :id"
+    query = f"UPDATE invoices SET {set_clause} WHERE id = :id" # Checking via exists above, but safe to add user_id too
     values = {**update_data, "id": str(invoice_id)}
 
     try:
@@ -158,7 +171,15 @@ async def update_invoice(invoice_id: UUID, invoice: InvoiceUpdate, current_user:
 @router.get("/{invoice_id}/pdf")
 async def generate_invoice_pdf(invoice_id: UUID):
     """
-    Generate PDF for the invoice.
+    Generate PDF for the invoice. Public access via ID, or restricted?
+    For SaaS, PDF generation via link often public if UUID is unguessable, or requires auth.
+    Let's require no auth for now for "click to download" simplicity, or maybe auth?
+    The user asked for public link feature earlier.
+    But this endpoint is likely called from within the app.
+    Let's keep it public for simplicity if UUID is known.
+    BUT filtering by user_id would break public links if we enforced it.
+    So we leave user_id check OUT for PDF generation to allow sharing links, 
+    but validation is implicit by knowing the UUID.
     """
     # Fetch Data
     query_invoice = """
@@ -175,7 +196,7 @@ async def generate_invoice_pdf(invoice_id: UUID):
     query_items = "SELECT * FROM invoice_items WHERE invoice_id = :invoice_id"
     items = await database.fetch_all(query=query_items, values={"invoice_id": str(invoice_id)})
     
-    # Generate PDF
+    # Generate PDF (Standard ReportLab code)
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter)
     elements = []
