@@ -8,11 +8,10 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./business.db:/app/business.db
-      - ./backend:/app/backend
+      - app_data:/app/data
     environment:
-      - DB_URL=sqlite:///./business.db
-      - SECRET_KEY=your_secret_key_here
+      - DATABASE_URL=sqlite+aiosqlite:////app/data/business.db
+      - SECRET_KEY=change_this_secret_key_in_production
     restart: always
 
   frontend:
@@ -25,6 +24,5 @@ services:
       - backend
     restart: always
 
-# Define Volumes (if needed)
 volumes:
-  db_data:
+  app_data:
