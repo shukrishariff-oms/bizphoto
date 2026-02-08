@@ -5,8 +5,8 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    ports:
-      - "8000:8000"
+    # Removed ports 8000:8000 to avoid conflict on host. 
+    # Frontend connects via internal network.
     volumes:
       - app_data:/app/data
     environment:
