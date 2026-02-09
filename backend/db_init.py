@@ -56,7 +56,21 @@ async def init_db():
                 current_shutter_count INTEGER DEFAULT 0,
                 purchase_price REAL DEFAULT 0.00,
                 max_shutter_life INTEGER DEFAULT 150000,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                user_id TEXT REFERENCES users(id)
+            );
+        """)
+
+        # Lenses
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS lenses (
+                id TEXT PRIMARY KEY,
+                model_name TEXT NOT NULL,
+                serial_number TEXT,
+                purchase_date DATE,
+                purchase_price REAL DEFAULT 0.00,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                user_id TEXT REFERENCES users(id)
             );
         """)
 
