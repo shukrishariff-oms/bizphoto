@@ -2,7 +2,10 @@ import asyncio
 import aiosqlite
 import os
 
-DATABASE_URL = "business.db"
+if os.path.exists("/app/data"):
+    DATABASE_URL = "/app/data/business.db"
+else:
+    DATABASE_URL = "business.db"
 
 async def migrate():
     print(f"Migrating database: {DATABASE_URL}...")

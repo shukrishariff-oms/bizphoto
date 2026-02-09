@@ -2,7 +2,10 @@ import asyncio
 import aiosqlite
 import os
 
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "business.db")
+if os.path.exists("/app/data"):
+    DB_PATH = "/app/data/business.db"
+else:
+    DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "business.db")
 
 async def migrate():
     print(f"Connecting to {DB_PATH}...")

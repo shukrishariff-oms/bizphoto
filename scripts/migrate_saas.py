@@ -2,7 +2,10 @@ import sqlite3
 import os
 
 # Determine DB path (copied from deploy_db.py logic)
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./business.db")
+if os.path.exists("/app/data"):
+    DATABASE_URL = "sqlite+aiosqlite:////app/data/business.db"
+else:
+    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./business.db")
 
 # Strip async driver prefix
 if "sqlite+aiosqlite:///" in DATABASE_URL:

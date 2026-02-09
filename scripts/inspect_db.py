@@ -1,7 +1,12 @@
 import asyncio
 import aiosqlite
 
-DATABASE_URL = "business.db"
+import os
+
+if os.path.exists("/app/data"):
+    DATABASE_URL = "/app/data/business.db"
+else:
+    DATABASE_URL = "business.db"
 
 async def inspect():
     async with aiosqlite.connect(DATABASE_URL) as db:

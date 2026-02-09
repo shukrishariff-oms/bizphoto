@@ -12,7 +12,11 @@ POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
 POSTGRES_DB = os.getenv("POSTGRES_DB", "business_photography")
 
 # DATABASE_URL = f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_SERVER}:{POSTGRES_PORT}/{POSTGRES_DB}"
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./business.db")
+# Check for Persistent Storage (Coolify)
+if os.path.exists("/app/data"):
+    DATABASE_URL = "sqlite+aiosqlite:////app/data/business.db"
+else:
+    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./business.db")
 
 database = Database(DATABASE_URL)
 

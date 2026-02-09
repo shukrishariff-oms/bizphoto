@@ -10,7 +10,10 @@ def get_password_hash(password):
     return bcrypt.hashpw(password, bcrypt.gensalt()).decode('utf-8')
 
 # Determine DB path from env var (DATABASE_URL) or default relative path
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./business.db")
+if os.path.exists("/app/data"):
+    DATABASE_URL = "sqlite+aiosqlite:////app/data/business.db"
+else:
+    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./business.db")
 
 # Extract path from URL (remove scheme)
 if "sqlite+aiosqlite:///" in DATABASE_URL:

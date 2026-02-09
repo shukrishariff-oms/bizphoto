@@ -9,7 +9,10 @@ def get_password_hash(password):
         password = password.encode('utf-8')
     return bcrypt.hashpw(password, bcrypt.gensalt()).decode('utf-8')
 
-DATABASE_URL = "business.db"
+if os.path.exists("/app/data"):
+    DATABASE_URL = "/app/data/business.db"
+else:
+    DATABASE_URL = "business.db"
 
 async def setup_sqlite():
     # Delete existing if any (optional, but safer for fresh start)
