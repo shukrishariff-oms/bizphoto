@@ -17,6 +17,9 @@ class ExpenseCreate(BaseModel):
     cost_type: str  # e.g., 'Photographer Fee', 'Transport', 'Marketing'
     amount: float
     description: Optional[str] = None
+    rate_type: str = 'flat'  # 'flat', 'per_hour', 'per_person'
+    unit_price: float = 0.0
+    quantity: float = 1.0
 
 class ExpenseResponse(BaseModel):
     id: UUID
@@ -24,12 +27,18 @@ class ExpenseResponse(BaseModel):
     cost_type: str
     amount: float
     description: Optional[str] = None
+    rate_type: str
+    unit_price: float
+    quantity: float
     created_at: str
 
 class ExpenseUpdate(BaseModel):
     cost_type: Optional[str] = None
     amount: Optional[float] = None
     description: Optional[str] = None
+    rate_type: Optional[str] = None
+    unit_price: Optional[float] = None
+    quantity: Optional[float] = None
 
 # --- Endpoints ---
 
@@ -47,15 +56,18 @@ async def create_expense(expense: ExpenseCreate, current_user: dict = Depends(ge
 
     expense_id = str(uuid4())
     query = """
-    INSERT INTO event_costs (id, event_id, cost_type, amount, description)
-    VALUES (:id, :event_id, :cost_type, :amount, :description)
+    INSERT INTO event_costs (id, event_id, cost_type, amount, description, rate_type, unit_price, quantity)
+    VALUES (:id, :event_id, :cost_type, :amount, :description, :rate_type, :unit_price, :quantity)
     """
     values = {
         "id": expense_id,
         "event_id": str(expense.event_id),
         "cost_type": expense.cost_type,
         "amount": expense.amount,
-        "description": expense.description
+        "description": expense.description,
+        "rate_type": expense.rate_type,
+        "unit_price": expense.unit_price,
+        "quantity": expense.quantity
     }
     
     try:
@@ -71,19 +83,16 @@ async def get_event_expenses(event_id: UUID, current_user: dict = Depends(get_cu
     List all expenses associated with a specific event.
     """
     user_id = current_user["id"]
-    # Check event ownership implicit in join or check.
-    # Simple check first
     check_query = "SELECT 1 FROM events WHERE id = :event_id AND user_id = :user_id"
     event_exists = await database.fetch_one(query=check_query, values={"event_id": str(event_id), "user_id": user_id})
     if not event_exists:
-         # Either not found or not owned, return empty list or 404? 
-         # Standard practice: 404 if parent not found, or empty list if just access denied to prevent enumeration?
-         # Let's say 404/Empty. Return empty list matches original behavior.
          return []
 
     query = "SELECT * FROM event_costs WHERE event_id = :event_id ORDER BY created_at DESC"
     try:
         results = await database.fetch_all(query=query, values={"event_id": str(event_id)})
+        # Ensure default values for older records if any (though migration should handle schema)
+        # But Pydantic will need the fields. Migration sets defaults, so DB returns them.
         return [dict(r) for r in results]
     except Exception as e:
         print(f"Error fetching expenses: {e}")
