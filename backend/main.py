@@ -40,6 +40,10 @@ app.include_router(invoices.router, prefix="/api")
 # Typically the Dockerfile copies 'frontend/dist' to '/app/frontend/dist'
 STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "dist")
 
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "database": "connected" if database.is_connected else "disconnected"}
+
 if os.path.exists(STATIC_DIR):
     app.mount("/assets", StaticFiles(directory=os.path.join(STATIC_DIR, "assets")), name="assets")
     
@@ -54,7 +58,3 @@ if os.path.exists(STATIC_DIR):
         return FileResponse(os.path.join(STATIC_DIR, "index.html"))
 else:
     print(f"Static directory not found: {STATIC_DIR}. Running in API-only mode.")
-
-@app.get("/health")
-async def health_check():
-    return {"status": "ok", "database": "connected" if database.is_connected else "disconnected"}
