@@ -8,6 +8,13 @@ import os
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Initialize DB (Run Migrations)
+    from backend.db_init import init_db
+    try:
+        await init_db()
+    except Exception as e:
+        print(f"Database initialization failed: {e}")
+        
     await database.connect()
     yield
     await database.disconnect()
