@@ -14,3 +14,6 @@ reportlab
 bcrypt
 Pillow
 httpx
+easyocr
+torch
+torchvision
