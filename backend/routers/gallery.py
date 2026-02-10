@@ -47,8 +47,10 @@ async def upload_photo(
         raise HTTPException(status_code=404, detail="Album not found")
 
     photo_id = str(uuid.uuid4())
-    ext = os.path.splitext(file.filename)[1]
-    filename = f"{photo_id}{ext}"
+    # Keep original extension for internal use, but watermarked is always .jpg for web
+    orig_ext = os.path.splitext(file.filename)[1].lower()
+    filename = f"{photo_id}{orig_ext}"
+    wm_filename = f"{photo_id}.jpg"
     
     # Paths
     album_dir = os.path.join(UPLOAD_ROOT, album_id)
@@ -58,14 +60,18 @@ async def upload_photo(
     os.makedirs(wm_dir, exist_ok=True)
     
     orig_path = os.path.join(orig_dir, filename)
-    wm_path = os.path.join(wm_dir, filename)
+    wm_path = os.path.join(wm_dir, wm_filename)
     
     # Save original
     with open(orig_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     
     # Apply watermark
-    apply_watermark(orig_path, wm_path)
+    success = apply_watermark(orig_path, wm_path)
+    if not success:
+        # Fallback: if watermark fails, copy original as wm (better than broken image)
+        shutil.copy(orig_path, wm_path)
+        print(f"Warning: Watermark failed for {photo_id}, using original.")
     
     # Save to DB
     query = """
@@ -75,7 +81,7 @@ async def upload_photo(
     values = {
         "id": photo_id,
         "album_id": album_id,
-        "filename": filename,
+        "filename": wm_filename, # Use .jpg filename for frontend
         "orig": orig_path,
         "wm": wm_path,
         "price": price
