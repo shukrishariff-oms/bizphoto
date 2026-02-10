@@ -57,6 +57,8 @@ async def get_current_user_token(token: str = Depends(oauth2_scheme)):
 def get_current_active_user(token_data: dict = Depends(get_current_user_token)):
     return token_data
 
+get_current_user = get_current_active_user
+
 def get_admin_user(token_data: dict = Depends(get_current_active_user)):
     if token_data["role"] != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
