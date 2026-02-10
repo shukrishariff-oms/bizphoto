@@ -36,6 +36,7 @@ const GalleryDetails = () => {
             setAlbum(currentAlbum);
 
             const photosRes = await axios.get(`/gallery/albums/${id}/photos`);
+            console.log("Fetched photos for album:", id, photosRes.data);
             setPhotos(photosRes.data);
         } catch (error) {
             console.error("Error fetching album details:", error);

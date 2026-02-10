@@ -91,6 +91,7 @@ async def upload_photo(
     # Trigger OCR in background
     background_tasks.add_task(process_photo_ocr, photo_id, orig_path)
     
+    print(f"DEBUG: Photo {photo_id} inserted into DB for album {album_id}")
     return {"id": photo_id, "status": "uploaded"}
 
 async def process_photo_ocr(photo_id: str, image_path: str):
@@ -105,7 +106,9 @@ async def process_photo_ocr(photo_id: str, image_path: str):
 @router.get("/albums/{album_id}/photos")
 async def get_photos(album_id: str):
     query = "SELECT id, album_id, filename, watermarked_path, price FROM photos WHERE album_id = :album_id"
-    return await database.fetch_all(query=query, values={"album_id": album_id})
+    results = await database.fetch_all(query=query, values={"album_id": album_id})
+    print(f"DEBUG: Fetched {len(results)} photos for album {album_id}")
+    return results
 
 import httpx
 from backend.config import TOYYIBPAY_SECRET, TOYYIBPAY_CATEGORY, TOYYIBPAY_URL, BASE_URL
