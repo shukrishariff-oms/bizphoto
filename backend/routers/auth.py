@@ -76,4 +76,8 @@ async def register_user(user: UserCreate):
         "role": user.role
     })
     
-    return {"message": "User registered successfully"}
+from backend.auth import get_current_user
+
+@router.get("/me")
+async def get_me(current_user: dict = Depends(get_current_user)):
+    return current_user
