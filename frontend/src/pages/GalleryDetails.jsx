@@ -69,41 +69,45 @@ const GalleryDetails = () => {
         const toastId = toast.loading('Uploading photos...');
 
         try {
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
+            const concurrency = 3; // Upload 3 files at a time
+            for (let i = 0; i < files.length; i += concurrency) {
+                const chunk = files.slice(i, i + concurrency);
+                const uploadPromises = chunk.map(async (file, chunkIdx) => {
+                    const actualIdx = i + chunkIdx;
 
-                // Update status to uploading
-                setUploadQueue(prev => prev.map((item, idx) =>
-                    idx === i ? { ...item, status: 'uploading' } : item
-                ));
-
-                const formData = new FormData();
-                formData.append('file', file);
-                formData.append('price', price);
-
-                try {
-                    await axios.post(`/gallery/albums/${id}/photos`, formData);
-                    // Update status to success
+                    // Update status to uploading
                     setUploadQueue(prev => prev.map((item, idx) =>
-                        idx === i ? { ...item, status: 'success' } : item
+                        idx === actualIdx ? { ...item, status: 'uploading' } : item
                     ));
-                } catch (err) {
-                    console.error(`Failed to upload ${file.name}:`, err);
-                    setUploadQueue(prev => prev.map((item, idx) =>
-                        idx === i ? { ...item, status: 'error' } : item
-                    ));
-                }
+
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('price', price);
+
+                    try {
+                        await axios.post(`/gallery/albums/${id}/photos`, formData);
+                        setUploadQueue(prev => prev.map((item, idx) =>
+                            idx === actualIdx ? { ...item, status: 'success' } : item
+                        ));
+                    } catch (err) {
+                        console.error(`Failed to upload ${file.name}:`, err);
+                        setUploadQueue(prev => prev.map((item, idx) =>
+                            idx === actualIdx ? { ...item, status: 'error' } : item
+                        ));
+                    }
+                });
+
+                await Promise.all(uploadPromises);
             }
 
-            const successCount = uploadQueue.filter(f => f.status === 'success').length;
-            toast.success(`Upload complete!`, { id: toastId });
+            toast.success(`Upload process finished!`, { id: toastId });
             fetchAlbumDetails();
 
             // Clear queue after a delay
             setTimeout(() => {
                 setUploadQueue([]);
                 setUploading(false);
-            }, 3000);
+            }, 5000);
 
         } catch (error) {
             toast.error('Upload process encountered errors', { id: toastId });
@@ -237,9 +241,9 @@ const GalleryDetails = () => {
                                     <span className="text-sm text-slate-300 truncate font-medium">{file.name}</span>
                                 </div>
                                 <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md ${file.status === 'success' ? 'text-green-400 bg-green-400/10' :
-                                        file.status === 'error' ? 'text-red-400 bg-red-400/10' :
-                                            file.status === 'uploading' ? 'text-blue-400 bg-blue-400/10 animate-pulse' :
-                                                'text-slate-500 bg-slate-500/10'
+                                    file.status === 'error' ? 'text-red-400 bg-red-400/10' :
+                                        file.status === 'uploading' ? 'text-blue-400 bg-blue-400/10 animate-pulse' :
+                                            'text-slate-500 bg-slate-500/10'
                                     }`}>
                                     {file.status}
                                 </span>
