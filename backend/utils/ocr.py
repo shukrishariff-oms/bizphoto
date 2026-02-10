@@ -1,8 +1,15 @@
-import easyocr
 import os
 
-# Initialize the reader once
-reader = easyocr.Reader(['en'])
+# Global variable for lazy loading
+_reader = None
+
+def get_reader():
+    global _reader
+    if _reader is None:
+        print("Initializing EasyOCR Reader...")
+        import easyocr
+        _reader = easyocr.Reader(['en'])
+    return _reader
 
 def detect_bib_numbers(image_path: str):
     """
@@ -12,6 +19,7 @@ def detect_bib_numbers(image_path: str):
     if not os.path.exists(image_path):
         return ""
     
+    reader = get_reader()
     results = reader.readtext(image_path)
     
     # We want to filter for things that look like numbers (bibs are usually numeric or alphanumeric)

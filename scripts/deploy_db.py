@@ -150,6 +150,34 @@ async def deploy_db():
         await db.commit()
         print("All tables checked/created.")
 
+        # --- GALLERY TABLES ---
+        # Albums
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS albums (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT,
+            user_id TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        );
+        """)
+        # Photos
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS photos (
+            id TEXT PRIMARY KEY,
+            album_id TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            original_path TEXT NOT NULL,
+            watermarked_path TEXT,
+            bib_number TEXT,
+            price REAL DEFAULT 0.0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(album_id) REFERENCES albums(id) ON DELETE CASCADE
+        );
+        """)
+        await db.commit()
+
         # --- SEED DATA ---
         
         # Seed Admin User
