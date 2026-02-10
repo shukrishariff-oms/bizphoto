@@ -18,11 +18,11 @@ const ClientGallery = () => {
     const fetchGallery = async () => {
         try {
             // Fetch public album info (we might need a specific public endpoint later, but for now using the same)
-            const albumRes = await axios.get(`/api/albums`);
+            const albumRes = await axios.get(`/albums`);
             const currentAlbum = albumRes.data.find(a => a.id === id);
             setAlbum(currentAlbum);
 
-            const photosRes = await axios.get(`/api/albums/${id}/photos`);
+            const photosRes = await axios.get(`/albums/${id}/photos`);
             setPhotos(photosRes.data);
         } catch (error) {
             console.error("Error fetching gallery:", error);

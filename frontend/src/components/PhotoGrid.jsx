@@ -8,7 +8,7 @@ const PhotoGrid = ({ photos, onBuy, isClient = true }) => {
                 <div key={photo.id} className="group relative bg-slate-800 rounded-xl overflow-hidden border border-slate-700 hover:border-blue-500 transition-all shadow-lg">
                     <div className="aspect-[3/2] overflow-hidden">
                         <img
-                            src={`/api/uploads/gallery/${photo.album_id}/watermarked/${photo.filename}`}
+                            src={`/uploads/gallery/${photo.album_id}/watermarked/${photo.filename}`}
                             alt={photo.filename}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         />

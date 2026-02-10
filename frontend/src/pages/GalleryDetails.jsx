@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from '../api/axios';
-import { ArrowLeftIcon, CloudArrowUpIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, CloudArrowUpIcon, TrashIcon, PhotoIcon } from '@heroicons/react/24/outline';
 import PhotoGrid from '../components/PhotoGrid';
 import toast from 'react-hot-toast';
 
@@ -19,11 +19,11 @@ const GalleryDetails = () => {
 
     const fetchAlbumDetails = async () => {
         try {
-            const albumRes = await axios.get('/api/albums');
+            const albumRes = await axios.get('/albums');
             const currentAlbum = albumRes.data.find(a => a.id === id);
             setAlbum(currentAlbum);
 
-            const photosRes = await axios.get(`/api/albums/${id}/photos`);
+            const photosRes = await axios.get(`/albums/${id}/photos`);
             setPhotos(photosRes.data);
         } catch (error) {
             console.error("Error fetching album details:", error);
@@ -42,7 +42,7 @@ const GalleryDetails = () => {
                 const formData = new FormData();
                 formData.append('file', file);
                 formData.append('price', price);
-                await axios.post(`/api/albums/${id}/photos`, formData);
+                await axios.post(`/albums/${id}/photos`, formData);
             }
             toast.success('Upload complete!', { id: toastId });
             fetchAlbumDetails();

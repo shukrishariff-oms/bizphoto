@@ -13,7 +13,7 @@ const GalleryList = () => {
 
     const fetchAlbums = async () => {
         try {
-            const response = await axios.get('/api/albums');
+            const response = await axios.get('/albums');
             setAlbums(response.data);
         } catch (error) {
             console.error("Error fetching albums:", error);
@@ -27,7 +27,7 @@ const GalleryList = () => {
         formData.append('description', newAlbum.description);
 
         try {
-            await axios.post('/api/albums', formData);
+            await axios.post('/albums', formData);
             setShowModal(false);
             setNewAlbum({ name: '', description: '' });
             fetchAlbums();
