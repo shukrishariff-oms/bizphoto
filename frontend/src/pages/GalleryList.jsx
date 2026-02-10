@@ -72,7 +72,9 @@ const GalleryList = () => {
                         </div>
                         <div className="flex justify-between items-center text-xs text-slate-500 mt-4 border-t border-slate-700 pt-4">
                             <span>RM 0.00 Total Sales</span>
-                            <span className="bg-slate-700/50 px-2 py-1 rounded text-slate-300">0 Photos</span>
+                            <span className="bg-slate-700/50 px-2 py-1 rounded text-slate-300">
+                                {album.photo_count || 0} Photos
+                            </span>
                         </div>
                     </div>
                 ))}

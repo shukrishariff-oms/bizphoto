@@ -22,7 +22,14 @@ async def create_album(name: str = Form(...), description: str = Form(None), cur
 
 @router.get("/albums")
 async def list_albums(current_user: dict = Depends(get_current_user)):
-    query = "SELECT * FROM albums WHERE user_id = :user_id ORDER BY created_at DESC"
+    query = """
+        SELECT a.*, COUNT(p.id) as photo_count 
+        FROM albums a 
+        LEFT JOIN photos p ON a.id = p.album_id 
+        WHERE a.user_id = :user_id 
+        GROUP BY a.id 
+        ORDER BY a.created_at DESC
+    """
     return await database.fetch_all(query=query, values={"user_id": current_user["id"]})
 
 @router.post("/albums/{album_id}/photos")

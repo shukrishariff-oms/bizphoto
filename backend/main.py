@@ -49,8 +49,8 @@ app.include_router(gallery.router, prefix="/api")
 # Typically the Dockerfile copies 'frontend/dist' to '/app/frontend/dist'
 STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "dist")
 
-from backend.config import UPLOAD_DIR
-app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+52: from backend.config import UPLOAD_DIR
+53: app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 @app.get("/health")
 async def health_check():
