@@ -161,3 +161,68 @@ async def toyyibpay_webhook(status: str = Form(...), billcode: str = Form(...), 
         print(f"Payment successful for Order: {order_id}, Bill: {billcode}")
         return "OK"
     return "FAILED"
+@router.post("/photos/bulk-delete")
+async def bulk_delete_photos(photo_ids: List[str], current_user: dict = Depends(get_current_user)):
+    if not photo_ids:
+        return {"status": "no_photos_provided", "count": 0}
+
+    # Verify ownership and fetch paths
+    placeholders = ", ".join([f":id{i}" for i in range(len(photo_ids))])
+    query = f"""
+        SELECT p.* FROM photos p
+        JOIN albums a ON p.album_id = a.id
+        WHERE p.id IN ({placeholders}) AND a.user_id = :user_id
+    """
+    values = {f"id{i}": pid for i, pid in enumerate(photo_ids)}
+    values["user_id"] = current_user["id"]
+    
+    photos_to_delete = await database.fetch_all(query=query, values=values)
+    
+    deleted_count = 0
+    for photo in photos_to_delete:
+        # Delete physical files
+        try:
+            if photo["original_path"] and os.path.exists(photo["original_path"]):
+                os.remove(photo["original_path"])
+            if photo["watermarked_path"] and os.path.exists(photo["watermarked_path"]):
+                os.remove(photo["watermarked_path"])
+        except Exception as e:
+            print(f"Error deleting file for photo {photo['id']}: {e}")
+            
+        # Delete from DB
+        await database.execute("DELETE FROM photos WHERE id = :id", {"id": photo["id"]})
+        deleted_count += 1
+        
+    return {"status": "success", "deleted_count": deleted_count}
+
+@router.delete("/albums/{album_id}")
+async def delete_album(album_id: str, current_user: dict = Depends(get_current_user)):
+    # Ownership check
+    album = await database.fetch_one("SELECT * FROM albums WHERE id = :id AND user_id = :uid", {"id": album_id, "uid": current_user["id"]})
+    if not album:
+        raise HTTPException(status_code=404, detail="Album not found")
+        
+    # Get all photos to delete files
+    photos = await database.fetch_all("SELECT * FROM photos WHERE album_id = :album_id", {"album_id": album_id})
+    
+    for photo in photos:
+        try:
+            if photo["original_path"] and os.path.exists(photo["original_path"]):
+                os.remove(photo["original_path"])
+            if photo["watermarked_path"] and os.path.exists(photo["watermarked_path"]):
+                os.remove(photo["watermarked_path"])
+        except Exception as e:
+            print(f"Error deleting physical file for photo {photo['id']} during album deletion: {e}")
+            
+    # Delete the entire album directory
+    album_dir = os.path.join(UPLOAD_ROOT, album_id)
+    if os.path.exists(album_dir):
+        try:
+            shutil.rmtree(album_dir)
+        except Exception as e:
+            print(f"Error deleting album directory {album_dir}: {e}")
+        
+    # Delete from DB (Foreign Key ON DELETE CASCADE in db_init should handle photos table)
+    await database.execute("DELETE FROM albums WHERE id = :id", {"id": album_id})
+    
+    return {"status": "success", "message": "Album and its photos deleted"}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from '../api/axios';
-import { PlusIcon, PhotoIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, PhotoIcon, TrashIcon } from '@heroicons/react/24/outline';
 
 const GalleryList = () => {
     const navigate = useNavigate();
@@ -72,9 +72,23 @@ const GalleryList = () => {
                         </div>
                         <div className="flex justify-between items-center text-xs text-slate-500 mt-4 border-t border-slate-700 pt-4">
                             <span>RM 0.00 Total Sales</span>
-                            <span className="bg-slate-700/50 px-2 py-1 rounded text-slate-300">
-                                {album.photo_count || 0} Photos
-                            </span>
+                            <div className="flex items-center gap-2">
+                                <span className="bg-slate-700/50 px-2 py-1 rounded text-slate-300">
+                                    {album.photo_count || 0} Photos
+                                </span>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (window.confirm('Delete this entire album and all its photos?')) {
+                                            axios.delete(`/gallery/albums/${album.id}`).then(() => fetchAlbums());
+                                        }
+                                    }}
+                                    className="p-1 hover:bg-red-600/20 rounded text-slate-500 hover:text-red-500 transition-all"
+                                    title="Delete Album"
+                                >
+                                    <TrashIcon className="w-4 h-4" />
+                                </button>
+                            </div>
                         </div>
                     </div>
                 ))}

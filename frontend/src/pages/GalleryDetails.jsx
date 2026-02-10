@@ -12,10 +12,22 @@ const GalleryDetails = () => {
     const [photos, setPhotos] = useState([]);
     const [uploading, setUploading] = useState(false);
     const [price, setPrice] = useState(50.00);
+    const [user, setUser] = useState(null);
+    const [selectedPhotos, setSelectedPhotos] = useState([]);
 
     useEffect(() => {
         fetchAlbumDetails();
+        fetchUser();
     }, [id]);
+
+    const fetchUser = async () => {
+        try {
+            const res = await axios.get('/auth/me');
+            setUser(res.data);
+        } catch (error) {
+            console.error("Error fetching user:", error);
+        }
+    };
 
     const fetchAlbumDetails = async () => {
         try {
@@ -54,6 +66,40 @@ const GalleryDetails = () => {
         }
     };
 
+    const handleToggleSelect = (photoId) => {
+        setSelectedPhotos(prev =>
+            prev.includes(photoId)
+                ? prev.filter(id => id !== photoId)
+                : [...prev, photoId]
+        );
+    };
+
+    const handleSelectAll = () => {
+        if (selectedPhotos.length === photos.length) {
+            setSelectedPhotos([]);
+        } else {
+            setSelectedPhotos(photos.map(p => p.id));
+        }
+    };
+
+    const handleBulkDelete = async () => {
+        if (!selectedPhotos.length) return;
+        if (!window.confirm(`Are you sure you want to delete ${selectedPhotos.length} photos?`)) return;
+
+        const toastId = toast.loading(`Deleting ${selectedPhotos.length} photos...`);
+        try {
+            await axios.post('/gallery/photos/bulk-delete', selectedPhotos);
+            toast.success('Photos deleted successfully', { id: toastId });
+            setSelectedPhotos([]);
+            fetchAlbumDetails();
+        } catch (error) {
+            toast.error('Failed to delete photos', { id: toastId });
+            console.error("Delete error:", error);
+        }
+    };
+
+    const isAdmin = user?.role === 'admin';
+
     if (!album) return <div className="p-8 text-white">Loading...</div>;
 
     return (
@@ -68,7 +114,15 @@ const GalleryDetails = () => {
 
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10 bg-slate-800/50 p-6 rounded-2xl border border-slate-700 shadow-sm">
                 <div>
-                    <h1 className="text-3xl font-bold text-white mb-2">{album.name}</h1>
+                    <div className="flex items-center gap-2 mb-2">
+                        <h1 className="text-3xl font-bold text-white">{album.name}</h1>
+                        {isAdmin && (
+                            <span className="bg-blue-900/40 text-blue-400 text-xs px-2 py-0.5 rounded-full border border-blue-800/50 flex items-center gap-1 font-medium">
+                                <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></div>
+                                Admin Mode
+                            </span>
+                        )}
+                    </div>
                     <p className="text-slate-400">{album.description}</p>
                 </div>
                 <div className="flex items-center gap-4 bg-slate-900 p-4 rounded-xl border border-slate-800">
@@ -89,17 +143,44 @@ const GalleryDetails = () => {
                 </div>
             </div>
 
-            <div className="mb-6 flex justify-between items-center">
-                <h2 className="text-xl font-semibold text-white">Album Photos ({photos.length})</h2>
+            <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="flex items-center gap-4">
+                    <h2 className="text-xl font-semibold text-white">Album Photos ({photos.length})</h2>
+                    {isAdmin && photos.length > 0 && (
+                        <div className="flex items-center gap-2 bg-slate-800/50 p-1 rounded-lg border border-slate-700">
+                            <button
+                                onClick={handleSelectAll}
+                                className="text-xs font-medium text-slate-300 hover:text-white px-2 py-1 rounded transition-colors"
+                            >
+                                {selectedPhotos.length === photos.length ? 'Unselect All' : 'Select All'}
+                            </button>
+                            {selectedPhotos.length > 0 && (
+                                <button
+                                    onClick={handleBulkDelete}
+                                    className="flex items-center gap-1 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white text-xs font-bold px-2 py-1 rounded transition-all border border-red-500/30"
+                                >
+                                    <TrashIcon className="w-3.5 h-3.5" />
+                                    Delete {selectedPhotos.length}
+                                </button>
+                            )}
+                        </div>
+                    )}
+                </div>
                 <button
                     onClick={() => window.open(`/gallery/${id}`, '_blank')}
-                    className="text-blue-400 hover:text-blue-300 text-sm font-medium underline"
+                    className="text-blue-400 hover:text-blue-300 text-sm font-medium underline inline-flex items-center gap-1"
                 >
                     View Public Gallery
                 </button>
             </div>
 
-            <PhotoGrid photos={photos} isClient={false} />
+            <PhotoGrid
+                photos={photos}
+                isClient={false}
+                isAdmin={isAdmin}
+                selectedPhotos={selectedPhotos}
+                onToggleSelect={handleToggleSelect}
+            />
 
             {photos.length === 0 && !uploading && (
                 <div className="text-center py-20 bg-slate-800/20 rounded-3xl border-2 border-dashed border-slate-700">
