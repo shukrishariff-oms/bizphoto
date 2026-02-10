@@ -8,10 +8,23 @@ const GalleryList = () => {
     const [albums, setAlbums] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [newAlbum, setNewAlbum] = useState({ name: '', description: '' });
+    const [user, setUser] = useState(null);
 
     useEffect(() => {
         fetchAlbums();
+        fetchUser();
     }, []);
+
+    const fetchUser = async () => {
+        try {
+            const res = await axios.get('/auth/me');
+            setUser(res.data);
+        } catch (error) {
+            console.error("Error fetching user:", error);
+        }
+    };
+
+    const isAdmin = user?.role === 'admin' || user?.role === 'photographer';
 
     const fetchAlbums = async () => {
         try {

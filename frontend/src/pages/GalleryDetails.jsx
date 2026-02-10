@@ -99,7 +99,7 @@ const GalleryDetails = () => {
         }
     };
 
-    const isAdmin = user?.role === 'admin';
+    const isAdmin = user?.role === 'admin' || user?.role === 'photographer';
 
     if (!album) return <div className="p-8 text-white">Loading...</div>;
 
