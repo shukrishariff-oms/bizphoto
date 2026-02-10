@@ -25,6 +25,8 @@ COPY scripts ./scripts
 COPY --from=build-frontend /app/frontend/dist ./frontend/dist
 
 # Expose port (only one port needed now, as backend serves frontend)
+RUN mkdir -p /app/data
+VOLUME /app/data
 EXPOSE 8000
 
 # Set environment variables

@@ -6,10 +6,11 @@ import shutil
 from backend.database import database
 from backend.auth import get_current_user
 from backend.utils.watermark import apply_watermark
+from backend.config import GALLERY_DIR
 
 router = APIRouter(tags=["Gallery"])
 
-UPLOAD_ROOT = "uploads/gallery"
+UPLOAD_ROOT = GALLERY_DIR
 
 @router.post("/albums")
 async def create_album(name: str = Form(...), description: str = Form(None), current_user: dict = Depends(get_current_user)):
@@ -73,3 +74,58 @@ async def upload_photo(album_id: str, price: float = Form(0.0), file: UploadFile
 async def get_photos(album_id: str):
     query = "SELECT id, album_id, filename, watermarked_path, price FROM photos WHERE album_id = :album_id"
     return await database.fetch_all(query=query, values={"album_id": album_id})
+
+import httpx
+from backend.config import TOYYIBPAY_SECRET, TOYYIBPAY_CATEGORY, TOYYIBPAY_URL, BASE_URL
+
+@router.post("/checkout/{photo_id}")
+async def checkout_photo(photo_id: str):
+    # Fetch photo details
+    photo = await database.fetch_one("SELECT * FROM photos WHERE id = :id", {"id": photo_id})
+    if not photo:
+        raise HTTPException(status_code=404, detail="Photo not found")
+    
+    # Generate Unique Order ID
+    order_id = f"PAY-{uuid.uuid4().hex[:8].upper()}"
+    
+    # ToyyibPay Payload
+    payload = {
+        'userSecretKey': TOYYIBPAY_SECRET,
+        'categoryCode': TOYYIBPAY_CATEGORY,
+        'billName': f"Photo Purchase: {photo['filename']}",
+        'billDescription': f"Purchase of high-resolution digital image {photo['filename']}",
+        'billPriceSetting': 1,
+        'billPayorInfo': 1,
+        'billAmount': int(photo['price'] * 100), # ToyyibPay uses cents
+        'billReturnUrl': f"{BASE_URL}/payment-success?id={photo_id}",
+        'billCallbackUrl': f"{BASE_URL}/api/gallery/webhook",
+        'billExternalReferenceNo': order_id,
+        'billTo': 'Customer',
+        'billEmail': 'customer@example.com',
+        'billPhone': '0123456789',
+        'billSplitPayment': 0,
+        'billSplitPaymentArgs': '',
+        'billPaymentChannel': '0', # FPX
+        'billContentHtml': '',
+        'billChargeToCustomer': 1
+    }
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.post(f"{TOYYIBPAY_URL}/index.php/api/createBill", data=payload)
+        res_data = response.json()
+        
+        if isinstance(res_data, list) and len(res_data) > 0:
+            bill_code = res_data[0].get('BillCode')
+            return {"payment_url": f"{TOYYIBPAY_URL}/{bill_code}"}
+        
+    raise HTTPException(status_code=500, detail="Failed to create payment bill")
+
+@router.post("/webhook")
+async def toyyibpay_webhook(status: str = Form(...), billcode: str = Form(...), order_id: str = Form(...)):
+    # ToyyibPay sends status=1 for success
+    if status == '1':
+        # Logic to mark photo as 'purchased' or send download link
+        # For a simple implementation, we can log it or update a 'orders' table
+        print(f"Payment successful for Order: {order_id}, Bill: {billcode}")
+        return "OK"
+    return "FAILED"
