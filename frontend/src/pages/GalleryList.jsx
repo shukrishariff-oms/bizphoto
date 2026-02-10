@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from '../api/axios';
 import { PlusIcon, PhotoIcon } from '@heroicons/react/24/outline';
 
 const GalleryList = () => {
+    const navigate = useNavigate();
     const [albums, setAlbums] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [newAlbum, setNewAlbum] = useState({ name: '', description: '' });
@@ -54,7 +56,11 @@ const GalleryList = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {albums.map((album) => (
-                    <div key={album.id} className="bg-slate-800 border border-slate-700 p-6 rounded-xl hover:border-slate-600 transition-all cursor-pointer group">
+                    <div
+                        key={album.id}
+                        onClick={() => navigate(`/galleries/${album.id}`)}
+                        className="bg-slate-800 border border-slate-700 p-6 rounded-xl hover:border-slate-600 transition-all cursor-pointer group"
+                    >
                         <div className="flex items-center gap-4 mb-4">
                             <div className="w-12 h-12 bg-blue-900/30 rounded-lg flex items-center justify-center text-blue-400 group-hover:bg-blue-600 group-hover:text-white transition-colors">
                                 <PhotoIcon className="w-6 h-6" />
