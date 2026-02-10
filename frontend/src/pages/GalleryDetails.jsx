@@ -11,6 +11,7 @@ const GalleryDetails = () => {
     const [album, setAlbum] = useState(null);
     const [photos, setPhotos] = useState([]);
     const [uploading, setUploading] = useState(false);
+    const [uploadQueue, setUploadQueue] = useState([]); // { name, status: 'pending'|'uploading'|'success'|'error' }
     const [price, setPrice] = useState(50.00);
     const [user, setUser] = useState(null);
     const [selectedPhotos, setSelectedPhotos] = useState([]);
@@ -57,25 +58,55 @@ const GalleryDetails = () => {
     };
 
     const handleFileUpload = async (e) => {
-        const files = e.target.files;
+        const files = Array.from(e.target.files);
         if (!files.length) return;
 
         setUploading(true);
-        const toastId = toast.loading('Uploading photos and applying watermarks...');
+        // Initialize queue
+        const initialQueue = files.map(f => ({ name: f.name, status: 'pending' }));
+        setUploadQueue(initialQueue);
+
+        const toastId = toast.loading('Uploading photos...');
 
         try {
-            for (const file of files) {
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+
+                // Update status to uploading
+                setUploadQueue(prev => prev.map((item, idx) =>
+                    idx === i ? { ...item, status: 'uploading' } : item
+                ));
+
                 const formData = new FormData();
                 formData.append('file', file);
                 formData.append('price', price);
-                await axios.post(`/gallery/albums/${id}/photos`, formData);
+
+                try {
+                    await axios.post(`/gallery/albums/${id}/photos`, formData);
+                    // Update status to success
+                    setUploadQueue(prev => prev.map((item, idx) =>
+                        idx === i ? { ...item, status: 'success' } : item
+                    ));
+                } catch (err) {
+                    console.error(`Failed to upload ${file.name}:`, err);
+                    setUploadQueue(prev => prev.map((item, idx) =>
+                        idx === i ? { ...item, status: 'error' } : item
+                    ));
+                }
             }
-            toast.success('Upload complete!', { id: toastId });
+
+            const successCount = uploadQueue.filter(f => f.status === 'success').length;
+            toast.success(`Upload complete!`, { id: toastId });
             fetchAlbumDetails();
+
+            // Clear queue after a delay
+            setTimeout(() => {
+                setUploadQueue([]);
+                setUploading(false);
+            }, 3000);
+
         } catch (error) {
-            toast.error('Upload failed', { id: toastId });
-            console.error("Upload error:", error);
-        } finally {
+            toast.error('Upload process encountered errors', { id: toastId });
             setUploading(false);
         }
     };
@@ -183,6 +214,40 @@ const GalleryDetails = () => {
                     </label>
                 </div>
             </div>
+
+            {/* Upload Progress Section */}
+            {uploadQueue.length > 0 && (
+                <div className="mb-8 bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-300">
+                    <div className="bg-slate-800 px-6 py-3 border-b border-slate-700 flex justify-between items-center">
+                        <h3 className="text-sm font-bold text-white uppercase tracking-wider">Upload Progress</h3>
+                        <span className="text-xs text-slate-400 font-mono">
+                            {uploadQueue.filter(f => f.status === 'success').length} / {uploadQueue.length} Done
+                        </span>
+                    </div>
+                    <div className="max-h-60 overflow-y-auto p-4 space-y-2">
+                        {uploadQueue.map((file, idx) => (
+                            <div key={idx} className="flex items-center justify-between bg-slate-800/50 p-3 rounded-xl border border-slate-700/50">
+                                <div className="flex items-center gap-3 overflow-hidden">
+                                    <div className="flex-shrink-0">
+                                        {file.status === 'pending' && <div className="w-4 h-4 rounded-full border-2 border-slate-600 border-t-transparent"></div>}
+                                        {file.status === 'uploading' && <div className="w-4 h-4 rounded-full border-2 border-blue-500 border-t-transparent animate-spin"></div>}
+                                        {file.status === 'success' && <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center"><div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div></div>}
+                                        {file.status === 'error' && <div className="w-4 h-4 rounded-full bg-red-500/20 flex items-center justify-center"><div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div></div>}
+                                    </div>
+                                    <span className="text-sm text-slate-300 truncate font-medium">{file.name}</span>
+                                </div>
+                                <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md ${file.status === 'success' ? 'text-green-400 bg-green-400/10' :
+                                        file.status === 'error' ? 'text-red-400 bg-red-400/10' :
+                                            file.status === 'uploading' ? 'text-blue-400 bg-blue-400/10 animate-pulse' :
+                                                'text-slate-500 bg-slate-500/10'
+                                    }`}>
+                                    {file.status}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {isAdmin && (
                 <div className="mb-8 bg-slate-800/30 p-6 rounded-2xl border border-slate-700/50">
