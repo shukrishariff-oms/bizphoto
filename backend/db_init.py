@@ -211,6 +211,11 @@ async def init_db():
              await db.execute("ALTER TABLE event_costs ADD COLUMN quantity REAL DEFAULT 1.0")
         except: pass
 
+        # Migration for Gallery OCR
+        try:
+            await db.execute("ALTER TABLE photos ADD COLUMN bib_number TEXT")
+        except: pass
+
         await db.commit()
         print("Database tables initialized.")
 
