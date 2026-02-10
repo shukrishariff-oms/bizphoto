@@ -182,6 +182,7 @@ async def init_db():
             filename TEXT NOT NULL,
             original_path TEXT NOT NULL,
             watermarked_path TEXT,
+            bib_number TEXT,
             price REAL DEFAULT 0.0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(album_id) REFERENCES albums(id) ON DELETE CASCADE
