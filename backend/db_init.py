@@ -160,11 +160,39 @@ async def init_db():
         );
         """)
         
+        # --- GALLERY TABLES ---
+
+        # Albums
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS albums (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT,
+            user_id TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        );
+        """)
+
+        # Photos
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS photos (
+            id TEXT PRIMARY KEY,
+            album_id TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            original_path TEXT NOT NULL,
+            watermarked_path TEXT,
+            price REAL DEFAULT 0.0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(album_id) REFERENCES albums(id) ON DELETE CASCADE
+        );
+        """)
+        
         # Determine if we need to migrate existing tables (SaaS support)
         # Checking if tables were just created or old without user_id
         # We can just attempt ALTER TABLE unconditionally safely with try/except
         
-        tables_to_check = ['events', 'clients', 'cameras', 'transactions', 'invoices']
+        tables_to_check = ['events', 'clients', 'cameras', 'transactions', 'invoices', 'albums']
         for table in tables_to_check:
              try:
                  await db.execute(f"ALTER TABLE {table} ADD COLUMN user_id TEXT REFERENCES users(id)")

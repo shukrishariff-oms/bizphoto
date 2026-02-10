@@ -13,6 +13,9 @@ import Finance from './pages/Finance';
 import Clients from './pages/Clients';
 import Invoices from './pages/Invoices';
 import InvoiceDetails from './pages/InvoiceDetails';
+import GalleryList from './pages/GalleryList';
+import GalleryDetails from './pages/GalleryDetails';
+import ClientGallery from './pages/ClientGallery';
 
 function App() {
   return (
@@ -39,8 +42,11 @@ function App() {
             <Route path="/clients" element={<Clients />} />
             <Route path="/invoices" element={<Invoices />} />
             <Route path="/invoices/:id" element={<InvoiceDetails />} />
+            <Route path="/galleries" element={<GalleryList />} />
+            <Route path="/galleries/:id" element={<GalleryDetails />} />
           </Route>
         </Route>
+        <Route path="/gallery/:id" element={<ClientGallery />} />
       </Routes>
     </Router>
   );

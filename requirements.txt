@@ -12,3 +12,5 @@ passlib[bcrypt]
 aiosqlite
 reportlab
 bcrypt
+Pillow
+httpx

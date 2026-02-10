@@ -36,13 +36,14 @@ app.include_router(events.router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api")
 
 # Lazy import other routers to avoid circular dependencies if any
-from backend.routers import expenses, cameras, finance, clients, invoices, lenses
+from backend.routers import expenses, cameras, finance, clients, invoices, lenses, gallery
 app.include_router(expenses.router, prefix="/api")
 app.include_router(cameras.router, prefix="/api")
 app.include_router(finance.router, prefix="/api")
 app.include_router(clients.router, prefix="/api")
 app.include_router(invoices.router, prefix="/api")
 app.include_router(lenses.router, prefix="/api")
+app.include_router(gallery.router, prefix="/api")
 
 # Mount static files (Frontend build)
 # Typically the Dockerfile copies 'frontend/dist' to '/app/frontend/dist'

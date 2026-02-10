@@ -1,6 +1,6 @@
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import { HomeIcon, CalendarIcon, VideoCameraIcon, ArrowLeftOnRectangleIcon, BanknotesIcon, UserGroupIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
+import { HomeIcon, CalendarIcon, VideoCameraIcon, ArrowLeftOnRectangleIcon, BanknotesIcon, UserGroupIcon, DocumentTextIcon, PhotoIcon } from '@heroicons/react/24/outline';
 import { cn } from '../utils/cn';
 import { motion } from 'framer-motion';
 
@@ -20,6 +20,7 @@ const Layout = () => {
         { name: 'Finance', path: '/finance', icon: BanknotesIcon },
         { name: 'Clients', path: '/clients', icon: UserGroupIcon },
         { name: 'Invoices', path: '/invoices', icon: DocumentTextIcon },
+        { name: 'Galleries', path: '/galleries', icon: PhotoIcon },
     ];
 
     return (
