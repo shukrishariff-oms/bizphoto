@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
 from typing import List, Optional
 import uuid
 import os
@@ -7,6 +7,7 @@ from backend.database import database
 from backend.auth import get_current_user
 from backend.utils.watermark import apply_watermark
 from backend.config import GALLERY_DIR
+from backend.utils.ocr import detect_bib_numbers
 
 router = APIRouter(tags=["Gallery"])
 
@@ -33,7 +34,13 @@ async def list_albums(current_user: dict = Depends(get_current_user)):
     return await database.fetch_all(query=query, values={"user_id": current_user["id"]})
 
 @router.post("/albums/{album_id}/photos")
-async def upload_photo(album_id: str, price: float = Form(0.0), file: UploadFile = File(...), current_user: dict = Depends(get_current_user)):
+async def upload_photo(
+    album_id: str, 
+    background_tasks: BackgroundTasks,
+    price: float = Form(0.0), 
+    file: UploadFile = File(...), 
+    current_user: dict = Depends(get_current_user)
+):
     # Check album ownership
     album = await database.fetch_one("SELECT * FROM albums WHERE id = :id AND user_id = :uid", {"id": album_id, "uid": current_user["id"]})
     if not album:
@@ -75,7 +82,19 @@ async def upload_photo(album_id: str, price: float = Form(0.0), file: UploadFile
     }
     await database.execute(query=query, values=values)
     
+    # Trigger OCR in background
+    background_tasks.add_task(process_photo_ocr, photo_id, orig_path)
+    
     return {"id": photo_id, "status": "uploaded"}
+
+async def process_photo_ocr(photo_id: str, image_path: str):
+    try:
+        bibs = detect_bib_numbers(image_path)
+        if bibs:
+            query = "UPDATE photos SET bib_number = :bibs WHERE id = :id"
+            await database.execute(query=query, values={"bibs": bibs, "id": photo_id})
+    except Exception as e:
+        print(f"OCR Error for photo {photo_id}: {e}")
 
 @router.get("/albums/{album_id}/photos")
 async def get_photos(album_id: str):
