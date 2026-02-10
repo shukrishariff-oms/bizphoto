@@ -31,11 +31,11 @@ const GalleryDetails = () => {
 
     const fetchAlbumDetails = async () => {
         try {
-            const albumRes = await axios.get('/albums');
+            const albumRes = await axios.get('/gallery/albums');
             const currentAlbum = albumRes.data.find(a => a.id === id);
             setAlbum(currentAlbum);
 
-            const photosRes = await axios.get(`/albums/${id}/photos`);
+            const photosRes = await axios.get(`/gallery/albums/${id}/photos`);
             setPhotos(photosRes.data);
         } catch (error) {
             console.error("Error fetching album details:", error);
@@ -54,7 +54,7 @@ const GalleryDetails = () => {
                 const formData = new FormData();
                 formData.append('file', file);
                 formData.append('price', price);
-                await axios.post(`/albums/${id}/photos`, formData);
+                await axios.post(`/gallery/albums/${id}/photos`, formData);
             }
             toast.success('Upload complete!', { id: toastId });
             fetchAlbumDetails();

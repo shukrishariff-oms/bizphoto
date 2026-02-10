@@ -9,7 +9,7 @@ from backend.utils.watermark import apply_watermark
 from backend.config import GALLERY_DIR
 from backend.utils.ocr import detect_bib_numbers
 
-router = APIRouter(tags=["Gallery"])
+router = APIRouter(prefix="/gallery", tags=["Gallery"])
 
 UPLOAD_ROOT = GALLERY_DIR
 
