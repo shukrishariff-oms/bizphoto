@@ -169,6 +169,7 @@ async def init_db():
             name TEXT NOT NULL,
             description TEXT,
             user_id TEXT NOT NULL,
+            package_price REAL DEFAULT 0.0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(user_id) REFERENCES users(id)
         );
@@ -184,6 +185,18 @@ async def init_db():
             watermarked_path TEXT,
             bib_number TEXT,
             price REAL DEFAULT 0.0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(album_id) REFERENCES albums(id) ON DELETE CASCADE
+        );
+        """)
+
+        # Album Pricing Tiers
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS album_pricing_tiers (
+            id TEXT PRIMARY KEY,
+            album_id TEXT NOT NULL,
+            quantity INTEGER NOT NULL,
+            price REAL NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(album_id) REFERENCES albums(id) ON DELETE CASCADE
         );
@@ -214,6 +227,10 @@ async def init_db():
         # Migration for Gallery OCR
         try:
             await db.execute("ALTER TABLE photos ADD COLUMN bib_number TEXT")
+        except: pass
+
+        try:
+            await db.execute("ALTER TABLE albums ADD COLUMN package_price REAL DEFAULT 0.0")
         except: pass
 
         await db.commit()

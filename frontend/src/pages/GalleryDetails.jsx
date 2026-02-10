@@ -14,11 +14,24 @@ const GalleryDetails = () => {
     const [price, setPrice] = useState(50.00);
     const [user, setUser] = useState(null);
     const [selectedPhotos, setSelectedPhotos] = useState([]);
+    const [tiers, setTiers] = useState([]);
+    const [newTier, setNewTier] = useState({ quantity: 3, price: 40 });
+    const [showTierForm, setShowTierForm] = useState(false);
 
     useEffect(() => {
         fetchAlbumDetails();
         fetchUser();
+        fetchTiers();
     }, [id]);
+
+    const fetchTiers = async () => {
+        try {
+            const res = await axios.get(`/gallery/albums/${id}/tiers`);
+            setTiers(res.data);
+        } catch (error) {
+            console.error("Error fetching tiers:", error);
+        }
+    };
 
     const fetchUser = async () => {
         try {
@@ -99,6 +112,33 @@ const GalleryDetails = () => {
         }
     };
 
+    const handleAddTier = async (e) => {
+        e.preventDefault();
+        const formData = new FormData();
+        formData.append('quantity', newTier.quantity);
+        formData.append('price', newTier.price);
+
+        try {
+            await axios.post(`/gallery/albums/${id}/tiers`, formData);
+            toast.success('Pricing tier added');
+            setShowTierForm(false);
+            fetchTiers();
+        } catch (error) {
+            toast.error('Failed to add tier');
+        }
+    };
+
+    const handleDeleteTier = async (tierId) => {
+        if (!window.confirm('Delete this pricing tier?')) return;
+        try {
+            await axios.delete(`/gallery/tiers/${tierId}`);
+            toast.success('Tier deleted');
+            fetchTiers();
+        } catch (error) {
+            toast.error('Failed to delete tier');
+        }
+    };
+
     const isAdmin = user?.role === 'admin' || user?.role === 'photographer';
 
     if (!album) return <div className="p-8 text-white">Loading...</div>;
@@ -143,6 +183,76 @@ const GalleryDetails = () => {
                     </label>
                 </div>
             </div>
+
+            {isAdmin && (
+                <div className="mb-8 bg-slate-800/30 p-6 rounded-2xl border border-slate-700/50">
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                            <span className="bg-yellow-500/10 text-yellow-500 p-1.5 rounded-lg border border-yellow-500/20">
+                                <TrashIcon className="w-4 h-4" />
+                            </span>
+                            Quantity-Based Pricing (Packages)
+                        </h2>
+                        <button
+                            onClick={() => setShowTierForm(!showTierForm)}
+                            className="bg-slate-700 hover:bg-slate-600 text-white text-xs px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                            {showTierForm ? 'Cancel' : '+ Add Package'}
+                        </button>
+                    </div>
+
+                    {showTierForm && (
+                        <form onSubmit={handleAddTier} className="mb-6 flex flex-wrap gap-4 items-end bg-slate-900/50 p-4 rounded-xl border border-slate-700">
+                            <div>
+                                <label className="block text-xs text-slate-500 mb-1 font-medium">Quantity (e.g., 3)</label>
+                                <input
+                                    type="number"
+                                    required
+                                    className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white w-32 focus:ring-2 focus:ring-blue-500 outline-none"
+                                    value={newTier.quantity}
+                                    onChange={(e) => setNewTier({ ...newTier, quantity: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs text-slate-500 mb-1 font-medium">Package Price (RM)</label>
+                                <input
+                                    type="number"
+                                    required
+                                    className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white w-40 focus:ring-2 focus:ring-blue-500 outline-none"
+                                    value={newTier.price}
+                                    onChange={(e) => setNewTier({ ...newTier, price: e.target.value })}
+                                />
+                            </div>
+                            <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg font-medium transition-all shadow-lg hover:shadow-blue-500/20">
+                                Save Package
+                            </button>
+                        </form>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {tiers.map((tier) => (
+                            <div key={tier.id} className="bg-slate-900 border border-slate-700 p-4 rounded-xl flex justify-between items-center group">
+                                <div>
+                                    <div className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">Package for</div>
+                                    <div className="text-white font-bold">{tier.quantity} Photos</div>
+                                    <div className="text-blue-400 text-xl font-black">RM {tier.price}</div>
+                                </div>
+                                <button
+                                    onClick={() => handleDeleteTier(tier.id)}
+                                    className="text-slate-600 hover:text-red-500 p-2 rounded-lg hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100"
+                                >
+                                    <TrashIcon className="w-5 h-5" />
+                                </button>
+                            </div>
+                        ))}
+                        {tiers.length === 0 && !showTierForm && (
+                            <div className="col-span-full py-6 text-center text-slate-500 text-sm italic bg-slate-900/30 rounded-xl border border-dashed border-slate-700">
+                                No specific packages set yet. Images will be sold at RM {price} each.
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div className="flex items-center gap-4">

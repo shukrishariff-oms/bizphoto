@@ -14,12 +14,29 @@ router = APIRouter(prefix="/gallery", tags=["Gallery"])
 UPLOAD_ROOT = GALLERY_DIR
 
 @router.post("/albums")
-async def create_album(name: str = Form(...), description: str = Form(None), current_user: dict = Depends(get_current_user)):
+async def create_album(name: str = Form(...), description: str = Form(None), package_price: float = Form(0.0), current_user: dict = Depends(get_current_user)):
     album_id = str(uuid.uuid4())
-    query = "INSERT INTO albums (id, name, description, user_id) VALUES (:id, :name, :description, :user_id)"
-    values = {"id": album_id, "name": name, "description": description, "user_id": current_user["id"]}
+    query = "INSERT INTO albums (id, name, description, user_id, package_price) VALUES (:id, :name, :description, :user_id, :pp)"
+    values = {"id": album_id, "name": name, "description": description, "user_id": current_user["id"], "pp": package_price}
     await database.execute(query=query, values=values)
     return {"id": album_id, "name": name}
+
+@router.put("/albums/{album_id}")
+async def update_album(
+    album_id: str,
+    name: str = Form(...),
+    description: str = Form(None),
+    package_price: float = Form(0.0),
+    current_user: dict = Depends(get_current_user)
+):
+    # Ownership check
+    album = await database.fetch_one("SELECT * FROM albums WHERE id = :id AND user_id = :uid", {"id": album_id, "uid": current_user["id"]})
+    if not album:
+        raise HTTPException(status_code=404, detail="Album not found")
+    
+    query = "UPDATE albums SET name = :name, description = :desc, package_price = :pp WHERE id = :id"
+    await database.execute(query=query, values={"name": name, "desc": description, "pp": package_price, "id": album_id})
+    return {"status": "success", "message": "Album updated"}
 
 @router.get("/albums")
 async def list_albums(current_user: dict = Depends(get_current_user)):
@@ -133,6 +150,144 @@ async def checkout_photo(photo_id: str):
         'billPayorInfo': 1,
         'billAmount': int(photo['price'] * 100), # ToyyibPay uses cents
         'billReturnUrl': f"{BASE_URL}/payment-success?id={photo_id}",
+        'billCallbackUrl': f"{BASE_URL}/api/gallery/webhook",
+        'billExternalReferenceNo': order_id,
+        'billTo': 'Customer',
+        'billEmail': 'customer@example.com',
+        'billPhone': '0123456789',
+        'billSplitPayment': 0,
+        'billSplitPaymentArgs': '',
+        'billPaymentChannel': '0', # FPX
+        'billContentHtml': '',
+        'billChargeToCustomer': 1
+    }
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.post(f"{TOYYIBPAY_URL}/index.php/api/createBill", data=payload)
+        res_data = response.json()
+        
+        if isinstance(res_data, list) and len(res_data) > 0:
+            bill_code = res_data[0].get('BillCode')
+            return {"payment_url": f"{TOYYIBPAY_URL}/{bill_code}"}
+        
+    raise HTTPException(status_code=500, detail="Failed to create payment bill")
+
+@router.get("/albums/{album_id}/tiers")
+async def get_album_tiers(album_id: str):
+    return await database.fetch_all("SELECT * FROM album_pricing_tiers WHERE album_id = :aid ORDER BY quantity ASC", {"aid": album_id})
+
+@router.post("/albums/{album_id}/tiers")
+async def add_pricing_tier(album_id: str, quantity: int = Form(...), price: float = Form(...), current_user: dict = Depends(get_current_user)):
+    album = await database.fetch_one("SELECT * FROM albums WHERE id = :id AND user_id = :uid", {"id": album_id, "uid": current_user["id"]})
+    if not album:
+        raise HTTPException(status_code=404, detail="Album not found")
+        
+    tier_id = str(uuid.uuid4())
+    await database.execute(
+        "INSERT INTO album_pricing_tiers (id, album_id, quantity, price) VALUES (:id, :aid, :q, :p)",
+        {"id": tier_id, "aid": album_id, "q": quantity, "p": price}
+    )
+    return {"id": tier_id, "quantity": quantity, "price": price}
+
+@router.delete("/tiers/{tier_id}")
+async def delete_pricing_tier(tier_id: str, current_user: dict = Depends(get_current_user)):
+    tier = await database.fetch_one("""
+        SELECT t.* FROM album_pricing_tiers t
+        JOIN albums a ON t.album_id = a.id
+        WHERE t.id = :tid AND a.user_id = :uid
+    """, {"tid": tier_id, "uid": current_user["id"]})
+    
+    if not tier:
+        raise HTTPException(status_code=404, detail="Tier not found or unauthorized")
+        
+    await database.execute("DELETE FROM album_pricing_tiers WHERE id = :id", {"id": tier_id})
+    return {"status": "success"}
+
+@router.post("/checkout-photos")
+async def checkout_photos(photo_ids: List[str]):
+    if not photo_ids:
+        raise HTTPException(status_code=400, detail="No photos selected")
+    
+    # Using specific syntax for IN clause to avoid parameter limit issues if needed, but for few photos it's fine
+    query = "SELECT * FROM photos WHERE id IN (" + ",".join([f"'{pid}'" for pid in photo_ids]) + ")"
+    photos = await database.fetch_all(query)
+    
+    if not photos:
+        raise HTTPException(status_code=404, detail="Photos not found")
+        
+    album_id = photos[0]['album_id']
+    count = len(photos)
+    
+    tiers = await database.fetch_all("SELECT * FROM album_pricing_tiers WHERE album_id = :aid ORDER BY quantity DESC", {"aid": album_id})
+    
+    total_price = 0.0
+    remaining_count = count
+    
+    for tier in tiers:
+        if remaining_count >= tier['quantity']:
+            num_packages = remaining_count // tier['quantity']
+            total_price += num_packages * tier['price']
+            remaining_count %= tier['quantity']
+            
+    if remaining_count > 0:
+        for i in range(count - remaining_count, count):
+             total_price += photos[i]['price']
+             
+    order_id = f"MUL-{uuid.uuid4().hex[:8].upper()}"
+    
+    payload = {
+        'userSecretKey': TOYYIBPAY_SECRET,
+        'categoryCode': TOYYIBPAY_CATEGORY,
+        'billName': f"Photos Purchase ({count} items)",
+        'billDescription': f"Purchase of {count} digital images",
+        'billPriceSetting': 1,
+        'billPayorInfo': 1,
+        'billAmount': int(total_price * 100),
+        'billReturnUrl': f"{BASE_URL}/payment-success?multiple=true",
+        'billCallbackUrl': f"{BASE_URL}/api/gallery/webhook",
+        'billExternalReferenceNo': order_id,
+        'billTo': 'Customer',
+        'billEmail': 'customer@example.com',
+        'billPhone': '0123456789',
+        'billSplitPayment': 0,
+        'billSplitPaymentArgs': '',
+        'billPaymentChannel': '0',
+        'billChargeToCustomer': 1
+    }
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.post(f"{TOYYIBPAY_URL}/index.php/api/createBill", data=payload)
+        res_data = response.json()
+        
+        if isinstance(res_data, list) and len(res_data) > 0:
+            bill_code = res_data[0].get('BillCode')
+            return {"payment_url": f"{TOYYIBPAY_URL}/{bill_code}", "total_price": total_price}
+            
+    raise HTTPException(status_code=500, detail="Failed to create payment bill")
+
+@router.post("/checkout-album/{album_id}")
+async def checkout_album(album_id: str):
+    # Fetch album details
+    album = await database.fetch_one("SELECT * FROM albums WHERE id = :id", {"id": album_id})
+    if not album:
+        raise HTTPException(status_code=404, detail="Album not found")
+    
+    if album['package_price'] <= 0:
+        raise HTTPException(status_code=400, detail="Album does not have a package price set")
+    
+    # Generate Unique Order ID
+    order_id = f"PKG-{uuid.uuid4().hex[:8].upper()}"
+    
+    # ToyyibPay Payload
+    payload = {
+        'userSecretKey': TOYYIBPAY_SECRET,
+        'categoryCode': TOYYIBPAY_CATEGORY,
+        'billName': f"Bundle Purchase: {album['name']}",
+        'billDescription': f"Purchase of all digital images in album {album['name']}",
+        'billPriceSetting': 1,
+        'billPayorInfo': 1,
+        'billAmount': int(album['package_price'] * 100), # ToyyibPay uses cents
+        'billReturnUrl': f"{BASE_URL}/payment-success?album_id={album_id}",
         'billCallbackUrl': f"{BASE_URL}/api/gallery/webhook",
         'billExternalReferenceNo': order_id,
         'billTo': 'Customer',

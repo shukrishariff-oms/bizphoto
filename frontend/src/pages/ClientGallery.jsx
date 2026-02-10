@@ -10,6 +10,8 @@ const ClientGallery = () => {
     const [album, setAlbum] = useState(null);
     const [photos, setPhotos] = useState([]);
     const [cart, setCart] = useState([]);
+    const [tiers, setTiers] = useState([]);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         fetchGallery();
@@ -17,16 +19,70 @@ const ClientGallery = () => {
 
     const fetchGallery = async () => {
         try {
-            // Fetch public album info (we might need a specific public endpoint later, but for now using the same)
-            // Fetch public album info
             const albumRes = await axios.get(`/gallery/albums`);
             const currentAlbum = albumRes.data.find(a => a.id === id);
             setAlbum(currentAlbum);
 
             const photosRes = await axios.get(`/gallery/albums/${id}/photos`);
             setPhotos(photosRes.data);
+
+            const tiersRes = await axios.get(`/gallery/albums/${id}/tiers`);
+            setTiers(tiersRes.data.sort((a, b) => b.quantity - a.quantity));
         } catch (error) {
             console.error("Error fetching gallery:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const toggleCart = (photoId) => {
+        setCart(prev =>
+            prev.includes(photoId)
+                ? prev.filter(id => id !== photoId)
+                : [...prev, photoId]
+        );
+    };
+
+    const calculateTotal = () => {
+        let count = cart.length;
+        if (count === 0) return 0;
+
+        let total = 0;
+        let remaining = count;
+
+        // Apply tiers
+        tiers.forEach(tier => {
+            if (remaining >= tier.quantity) {
+                const numPackages = Math.floor(remaining / tier.quantity);
+                total += numPackages * tier.price;
+                remaining %= tier.quantity;
+            }
+        });
+
+        // Remaining at individual prices (assume 15 if not set, but better to use photo.price)
+        if (remaining > 0) {
+            // Find prices for remaining items from the photos array
+            const selectedPhotos = photos.filter(p => cart.includes(p.id));
+            // For simplicity, use the last N items' prices
+            for (let i = count - remaining; i < count; i++) {
+                total += selectedPhotos[i]?.price || 15;
+            }
+        }
+
+        return total;
+    };
+
+    const handleCheckout = async () => {
+        if (cart.length === 0) return;
+
+        const toastId = toast.loading('Preparing secure checkout...');
+        try {
+            const res = await axios.post('/gallery/checkout-photos', { photo_ids: cart });
+            if (res.data.payment_url) {
+                window.location.href = res.data.payment_url;
+            }
+        } catch (error) {
+            toast.error('Checkout failed. Please try again.', { id: toastId });
         }
     };
 
@@ -69,7 +125,35 @@ const ClientGallery = () => {
                     <div className="text-xs text-slate-500">Select images to purchase high-resolution versions.</div>
                 </div>
 
-                <PhotoGrid photos={photos} onBuy={handleBuy} isClient={true} />
+                <PhotoGrid
+                    photos={photos}
+                    isClient={true}
+                    selectedPhotos={cart}
+                    onToggleSelect={toggleCart}
+                />
+
+                {/* Floating Checkout Bar */}
+                {cart.length > 0 && (
+                    <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[90%] max-w-2xl z-50 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="bg-blue-600 rounded-2xl p-4 shadow-2xl flex items-center justify-between border border-blue-500/50">
+                            <div className="flex items-center gap-4 pl-2">
+                                <div className="bg-white/20 p-2 rounded-xl">
+                                    <ShoppingBagIcon className="w-6 h-6 text-white" />
+                                </div>
+                                <div>
+                                    <p className="text-white font-bold text-lg leading-none">{cart.length} Photos Selected</p>
+                                    <p className="text-blue-100 text-xs font-medium uppercase tracking-wider mt-1">Total: RM {calculateTotal().toFixed(2)}</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={handleCheckout}
+                                className="bg-white text-blue-600 px-8 py-3 rounded-xl font-bold hover:bg-blue-50 transition-all active:scale-95 shadow-lg"
+                            >
+                                Pay Now
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 {photos.length === 0 && (
                     <div className="text-center py-32 bg-slate-900/40 rounded-[2rem] border border-slate-800">
